@@ -1,7 +1,8 @@
 // Flip Lens — Google Lens results scraper (orchestration only).
 //
-// Injected by the background worker into the Lens results page (which Google
-// currently serves from www.google.com/search?udm=26). Asks the background
+// Injected by the background worker into the Lens results page (the background
+// opens the Visual matches surface, www.google.com/search?...&udm=44, which is
+// where the for-sale price grid renders). Asks the background
 // worker whether this tab is associated with a pending history entry; if so,
 // watches the page with a
 // MutationObserver until shopping/for-sale results render (or a timeout fires),
