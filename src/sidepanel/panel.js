@@ -226,9 +226,129 @@ function render() {
   listEl.appendChild(frag);
 }
 
+// --- Drag an image file onto the panel to search it on Google Lens ---------
+//
+// Reuses the exact background pipeline as the crop overlay: hand the image to
+// FLIPLENS_LOG_ENTRY, which uploads to Lens, opens the results tab, and runs the
+// price/title scraper back onto the new entry.
+
+const UPLOAD_MAX_DIM = 2000; // downscale large photos before upload/messaging
+const THUMB_MAX_DIM = 320; // matches the crop-overlay thumbnail size
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function scaleToDataUrl(img, maxDim, mime, quality) {
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL(mime, quality);
+}
+
+let toastTimer = null;
+function toast(text) {
+  let el = document.querySelector(".toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.remove(), 4000);
+}
+
+async function searchDroppedImage(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    toast("That doesn't look like an image file.");
+    return;
+  }
+  try {
+    toast("Searching Google Lens…");
+    const dataUrl = await fileToDataUrl(file);
+    const img = await loadImage(dataUrl);
+    // JPEG keeps the upload payload small; Lens accepts it fine.
+    const uploadImage = scaleToDataUrl(img, UPLOAD_MAX_DIM, "image/jpeg", 0.92);
+    const thumbnail = scaleToDataUrl(img, THUMB_MAX_DIM, "image/png");
+
+    const resp = await chrome.runtime.sendMessage({
+      type: "FLIPLENS_LOG_ENTRY",
+      thumbnail,
+      uploadImage,
+    });
+
+    if (resp && resp.ok && resp.mode === "fallback") {
+      toast("Lens tab opened — press Ctrl/Cmd+V to run the search.");
+    } else if (!resp || !resp.ok) {
+      toast("Saved to history, but the Lens search could not be started.");
+    } else {
+      toast("Opened Lens results in a new tab.");
+    }
+  } catch (e) {
+    console.warn("Flip Lens: drag-drop search failed:", e);
+    toast("Could not search that image.");
+  }
+}
+
+function setupDragDrop() {
+  const zone = document.getElementById("dropzone");
+  // Counter avoids flicker as dragenter/leave fire across child elements.
+  let depth = 0;
+
+  const hasFiles = (e) =>
+    e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+
+  window.addEventListener("dragenter", (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth++;
+    zone.classList.add("active");
+  });
+
+  window.addEventListener("dragover", (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+
+  window.addEventListener("dragleave", (e) => {
+    if (!hasFiles(e)) return;
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) zone.classList.remove("active");
+  });
+
+  window.addEventListener("drop", (e) => {
+    e.preventDefault();
+    depth = 0;
+    zone.classList.remove("active");
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) searchDroppedImage(file);
+  });
+}
+
 async function init() {
   entries = await getHistory();
   render();
+  setupDragDrop();
   onHistoryChanged((newList) => {
     entries = newList || [];
     render();

@@ -3,8 +3,9 @@
 A Manifest V3 Chrome extension that streamlines a **furniture / estate-sale
 flipping research workflow**:
 
-1. Click the pinned toolbar icon.
-2. Drag-select an item on the page (like macOS **Cmd+Shift+4**).
+1. Click the pinned toolbar icon (or press **Ctrl/Cmd+Shift+Y**).
+2. Drag-select an item on the page (like macOS **Cmd+Shift+4**) — or drag an
+   image file straight into the side panel.
 3. The cropped image is **uploaded to Google Lens automatically** and the results
    open in a new tab — no extra clicks, no manual paste.
 4. The item is logged to a **sortable history** in the Chrome side panel, with an
@@ -18,9 +19,14 @@ and a per-user backend are an explicit later phase.
 
 ## Features
 
-- **One-click crop-and-capture** — a dimmed full-viewport overlay with a
-  crosshair; drag to select, **Esc** to cancel. The crop accounts for
+- **One-click crop-and-capture** — trigger from the toolbar icon **or the
+  keyboard shortcut** (`Ctrl/Cmd+Shift+Y`, rebindable at
+  `chrome://extensions/shortcuts`). A dimmed full-viewport overlay with a
+  crosshair appears; drag to select, **Esc** to cancel. The crop accounts for
   `window.devicePixelRatio` so it matches your selection exactly.
+- **Drag-and-drop search** — drop an image file anywhere on the history side
+  panel to run the same Google Lens search and log a new entry (no cropping
+  needed). Useful for photos you already have saved.
 - **Automatic reverse image search via Google Lens** — the cropped PNG is
   uploaded straight to Google Lens (`POST https://lens.google.com/v3/upload`) and
   the results page opens in a new tab automatically. No clipboard paste, no
@@ -83,6 +89,20 @@ You can load the repo directly, or build a self-contained zip first.
    **confirmed**.
 6. Use the **Sort by** dropdown to rank items by **resale value** or date. Use
    **Open Lens** to re-run a search, or **Delete** to remove an entry.
+
+**Two shortcuts to the same flow:**
+
+- **Keyboard:** press **Ctrl/Cmd+Shift+Y** instead of clicking the toolbar icon
+  to start the crop overlay. Change the binding at `chrome://extensions/shortcuts`.
+- **Drag a file:** drag any image file onto the side panel and drop it — Flip
+  Lens uploads it to Google Lens and logs a new entry, exactly like a crop.
+
+**Recrop to fix a wrong match:** if Lens latches onto the wrong item, start the
+crop overlay again **while you're on the Lens results tab** (toolbar icon or
+**Ctrl/Cmd+Shift+Y**) and drag a tighter box around the right item. Flip Lens
+re-runs the search and **updates that same history entry** in place — new
+thumbnail and freshly re-scraped price/title/comps — instead of creating a
+duplicate. (Cropping on a normal web page still creates a new entry.)
 
 ---
 

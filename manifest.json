@@ -32,6 +32,15 @@
   "side_panel": {
     "default_path": "src/sidepanel/panel.html"
   },
+  "commands": {
+    "trigger-crop": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Flip Lens: drag to crop an item"
+    }
+  },
   "declarative_net_request": {
     "rule_resources": [
       {

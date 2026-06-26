@@ -21,12 +21,16 @@
     </header>
 
     <p class="hint">
-      Click the toolbar icon, drag to crop an item, then paste (Ctrl/Cmd+V) into
-      the Google Lens tab.
+      Click the toolbar icon or press <kbd>Ctrl/Cmd+Shift+Y</kbd> to crop an item
+      — or drag an image file here to search it on Google Lens.
     </p>
 
     <ul id="list" class="list"></ul>
     <div id="empty" class="empty">No items yet. Crop something to get started.</div>
+
+    <div id="dropzone" class="dropzone">
+      <div class="dropzone-inner">Drop an image to search it on Google Lens</div>
+    </div>
 
     <template id="row-tpl">
       <li class="row">
