@@ -1,7 +1,9 @@
 // Flip Lens — Google Lens results scraper (orchestration only).
 //
-// Runs on lens.google.com. Asks the background worker whether this tab is
-// associated with a pending history entry; if so, watches the page with a
+// Injected by the background worker into the Lens results page (which Google
+// currently serves from www.google.com/search?udm=26). Asks the background
+// worker whether this tab is associated with a pending history entry; if so,
+// watches the page with a
 // MutationObserver until shopping/for-sale results render (or a timeout fires),
 // then uses the FlipLensExtractor module to pull prices + a confidence score
 // and reports them back.

@@ -5,8 +5,8 @@ flipping research workflow**:
 
 1. Click the pinned toolbar icon.
 2. Drag-select an item on the page (like macOS **Cmd+Shift+4**).
-3. The cropped image is copied to your clipboard and a **Google Lens** tab opens
-   — paste (**Ctrl/Cmd+V**) to run a reverse-image search.
+3. The cropped image is **uploaded to Google Lens automatically** and the results
+   open in a new tab — no extra clicks, no manual paste.
 4. The item is logged to a **sortable history** in the Chrome side panel, with an
    editable description, an editable **resale value**, and a best-effort
    auto-scraped price + **confidence score**.
@@ -21,9 +21,11 @@ and a per-user backend are an explicit later phase.
 - **One-click crop-and-capture** — a dimmed full-viewport overlay with a
   crosshair; drag to select, **Esc** to cancel. The crop accounts for
   `window.devicePixelRatio` so it matches your selection exactly.
-- **Reverse image search via Google Lens** — the cropped PNG is copied to the
-  clipboard and `https://lens.google.com/` opens in a new tab; you paste to
-  search. The image is never written to your filesystem.
+- **Automatic reverse image search via Google Lens** — the cropped PNG is
+  uploaded straight to Google Lens (`POST https://lens.google.com/v3/upload`) and
+  the results page opens in a new tab automatically. No clipboard paste, no
+  backend, and the image is never written to your filesystem. (If the upload ever
+  fails, it falls back to opening Lens with the image on your clipboard to paste.)
 - **Best-effort resale price scrape with a confidence score** — a content script
   on the Lens results page collects visible price strings from for-sale/sold
   match listings, computes min / median / max, and assigns a confidence tier
@@ -60,9 +62,9 @@ and a per-user backend are an explicit later phase.
 2. Click the **Flip Lens** toolbar icon. The history **side panel** opens and a
    dimmed crop overlay appears on the page.
 3. **Drag** a box around the item (press **Esc** to cancel). On mouse-up the
-   cropped image is copied to your clipboard.
-4. A **Google Lens** tab opens. Click into it and press **Ctrl/Cmd+V** to paste
-   the image and run the search.
+   crop is uploaded to Google Lens automatically.
+4. A **Google Lens** results tab opens on its own with the reverse-image search
+   already run — no paste needed.
 5. Switch back to the side panel: a new history entry has appeared with the
    cropped thumbnail. If the scraper found prices, the **resale value** is
    pre-filled with a **confidence badge**; otherwise it's blank for you to fill
@@ -97,10 +99,10 @@ recognized comp sources (eBay, Etsy, Mercari, …) versus arbitrary page text.
 ```
 manifest.json                     MV3 manifest (permissions, action, side panel)
 src/
-  background.js                   Service worker: icon click, capture, messaging, Lens tab
+  background.js                   Service worker: icon click, capture, Lens upload, messaging
   lib/storage.js                  chrome.storage.local history helpers (swappable for IndexedDB)
   content/
-    crop-overlay.js               Drag-select overlay + crop + clipboard (injected on click)
+    crop-overlay.js               Drag-select overlay + crop (injected on click)
     lens-extractor.js             ⚠ FRAGILE: Lens DOM selectors + confidence scoring (isolated)
     lens-scraper.js               Orchestrates the MutationObserver + messaging on Lens results
   sidepanel/
@@ -125,7 +127,6 @@ resale value manually (confidence shows as "none").
 ## Roadmap (later phases)
 
 - Authentication and a per-user backend to sync history across devices.
-- Hosting the cropped image so Lens search can run without a manual paste.
 - Configurable comp sources and currency support.
 
 ## License
