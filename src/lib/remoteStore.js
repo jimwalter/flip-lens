@@ -73,9 +73,24 @@ function entryToBody(entry) {
   return body;
 }
 
+// The API is keyset-paginated (?limit&cursor). The side panel expects the full
+// history, so page through here until exhausted (with a safety cap). A future
+// enhancement could expose incremental pages for infinite scroll.
+const PAGE_LIMIT = 100;
+const MAX_PAGES = 100;
+
 export async function getHistory() {
-  const data = await api("/api/items");
-  return (data?.items || []).map(itemToEntry);
+  const entries = [];
+  let cursor = null;
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const qs = new URLSearchParams({ limit: String(PAGE_LIMIT) });
+    if (cursor) qs.set("cursor", cursor);
+    const data = await api(`/api/items?${qs.toString()}`);
+    for (const item of data?.items || []) entries.push(itemToEntry(item));
+    cursor = data?.nextCursor || null;
+    if (!cursor) break;
+  }
+  return entries;
 }
 
 export async function addEntry(entry) {

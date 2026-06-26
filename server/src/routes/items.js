@@ -8,6 +8,7 @@ import {
   deleteItem,
 } from "../repositories/itemRepository.js";
 import { decodeDataUrl, extForContentType } from "../storage/index.js";
+import { assertUuid, sanitizeItemFields } from "../middleware/validate.js";
 
 // `store` is the resolved object store (see storage/index.js).
 export function itemsRouter(store) {
@@ -15,18 +16,26 @@ export function itemsRouter(store) {
 
   const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
-  // List the caller's items, newest first.
+  // List the caller's items, newest first. Keyset-paginated via ?limit&cursor.
   router.get(
     "/",
     wrap(async (req, res) => {
-      const items = await listItems({ tenantId: req.tenantId, userId: req.userId });
-      res.json({ items });
+      const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
+      const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+      const { items, nextCursor } = await listItems({
+        tenantId: req.tenantId,
+        userId: req.userId,
+        limit,
+        cursor,
+      });
+      res.json({ items, nextCursor });
     })
   );
 
   router.get(
     "/:id",
     wrap(async (req, res) => {
+      assertUuid(req.params.id);
       const item = await getItem({ tenantId: req.tenantId, userId: req.userId, id: req.params.id });
       if (!item) return res.status(404).json({ error: "not_found" });
       res.json({ item });
@@ -39,7 +48,7 @@ export function itemsRouter(store) {
     "/",
     wrap(async (req, res) => {
       const body = req.body || {};
-      const data = pickItemFields(body);
+      const data = sanitizeItemFields(body, { partial: false });
 
       if (body.thumbnailDataUrl) {
         const decoded = decodeDataUrl(body.thumbnailDataUrl);
@@ -58,8 +67,9 @@ export function itemsRouter(store) {
   router.patch(
     "/:id",
     wrap(async (req, res) => {
+      assertUuid(req.params.id);
       const body = req.body || {};
-      const patch = pickItemFields(body, { partial: true });
+      const patch = sanitizeItemFields(body, { partial: true });
 
       if (body.thumbnailDataUrl) {
         const decoded = decodeDataUrl(body.thumbnailDataUrl);
@@ -84,6 +94,7 @@ export function itemsRouter(store) {
   router.delete(
     "/:id",
     wrap(async (req, res) => {
+      assertUuid(req.params.id);
       const removed = await deleteItem({
         tenantId: req.tenantId,
         userId: req.userId,
@@ -103,31 +114,4 @@ export function itemsRouter(store) {
 
 function objectKey(tenantId, contentType) {
   return `tenants/${tenantId}/thumbnails/${randomUUID()}.${extForContentType(contentType)}`;
-}
-
-// Maps the request body to storable fields. For create, missing fields fall back
-// to repository defaults; for partial updates only present keys are forwarded.
-function pickItemFields(body, { partial = false } = {}) {
-  const out = {};
-  const keys = [
-    "title",
-    "description",
-    "resaleValue",
-    "confidence",
-    "confidenceReason",
-    "userConfirmed",
-    "sourceUrl",
-    "lensUrl",
-    "priceStats",
-    "marketStats",
-    "comps",
-  ];
-  for (const k of keys) {
-    if (partial) {
-      if (k in body) out[k] = body[k];
-    } else {
-      out[k] = body[k];
-    }
-  }
-  return out;
 }

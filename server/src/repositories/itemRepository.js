@@ -34,14 +34,63 @@ function rowToItem(r) {
   };
 }
 
-export async function listItems({ tenantId, userId }) {
+export const MAX_PAGE_SIZE = 100;
+export const DEFAULT_PAGE_SIZE = 50;
+
+// Keyset (cursor) pagination ordered by (created_at desc, id desc). A cursor
+// encodes the last row's sort key, so the query stays O(log n) on the
+// (tenant_id, user_id, created_at desc) index regardless of history size —
+// unlike OFFSET, which scans and discards skipped rows.
+function encodeCursor(row) {
+  const raw = JSON.stringify({ c: row.created_at.toISOString(), i: row.id });
+  return Buffer.from(raw, "utf8").toString("base64url");
+}
+
+function decodeCursor(cursor) {
+  try {
+    const { c, i } = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (typeof c !== "string" || typeof i !== "string") return null;
+    if (Number.isNaN(Date.parse(c))) return null;
+    return { createdAt: c, id: i };
+  } catch {
+    return null;
+  }
+}
+
+export async function listItems({ tenantId, userId, limit, cursor } = {}) {
+  const pageSize = Math.min(
+    Math.max(Number.isFinite(limit) ? Math.floor(limit) : DEFAULT_PAGE_SIZE, 1),
+    MAX_PAGE_SIZE
+  );
+
+  const params = [tenantId, userId];
+  let keyset = "";
+  if (cursor) {
+    const decoded = decodeCursor(cursor);
+    if (!decoded) {
+      const err = new Error("invalid_cursor");
+      err.status = 400;
+      throw err;
+    }
+    params.push(decoded.createdAt, decoded.id);
+    keyset = `and (created_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`;
+  }
+  params.push(pageSize + 1); // fetch one extra to detect another page
+
   const { rows } = await query(
     `select ${COLUMNS} from items
-       where tenant_id = $1 and user_id = $2
-       order by created_at desc`,
-    [tenantId, userId]
+       where tenant_id = $1 and user_id = $2 ${keyset}
+       order by created_at desc, id desc
+       limit $${params.length}`,
+    params
   );
-  return rows.map(rowToItem);
+
+  const hasMore = rows.length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
+  return {
+    items: page.map(rowToItem),
+    nextCursor: hasMore ? encodeCursor(page[page.length - 1]) : null,
+  };
 }
 
 export async function getItem({ tenantId, userId, id }) {
