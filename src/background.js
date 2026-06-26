@@ -35,7 +35,10 @@ chrome.runtime.onInstalled.addListener(() => {
     .catch(() => {});
 });
 
-chrome.action.onClicked.addListener(async (tab) => {
+// Start the crop flow: open the side panel and inject the crop overlay. Shared
+// by the toolbar action and the keyboard command (both are user gestures, which
+// chrome.sidePanel.open() requires).
+async function startCropFlow(tab) {
   if (!tab || tab.id == null) return;
 
   // Open the history side panel alongside the crop overlay so the user can
@@ -65,6 +68,23 @@ chrome.action.onClicked.addListener(async (tab) => {
   } catch (e) {
     console.warn("Flip Lens: could not inject crop overlay:", e);
   }
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  startCropFlow(tab);
+});
+
+// Keyboard shortcut (default Cmd/Ctrl+Shift+Y; rebindable at
+// chrome://extensions/shortcuts) triggers the same crop flow as the toolbar
+// icon. Chrome passes the active tab to the command callback.
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command !== "trigger-crop") return;
+  let target = tab;
+  if (!target || target.id == null) {
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    target = active;
+  }
+  await startCropFlow(target);
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -76,7 +96,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true; // async response
 
     case "FLIPLENS_LOG_ENTRY":
-      handleLogEntry(msg, sendResponse);
+      handleLogEntry(msg, sender, sendResponse);
       return true;
 
     case "FLIPLENS_GET_SCRAPE_JOB":
@@ -113,7 +133,7 @@ async function handleCapture(sender, sendResponse) {
 // open the results URL it returns — no clipboard, no manual paste. If that
 // fails (network/region/Google changes), fall back to opening lens.google.com
 // so the user can paste the image we already copied to their clipboard.
-async function handleLogEntry(msg, sendResponse) {
+async function handleLogEntry(msg, sender, sendResponse) {
   try {
     let lensUrl = null;
     let mode = "upload";
@@ -130,6 +150,43 @@ async function handleLogEntry(msg, sendResponse) {
       mode = "fallback";
     }
 
+    // Recrop case: if the capture came from a Lens results tab we already
+    // associated with an entry (because Lens latched onto the wrong item), update
+    // that same entry and re-run the scrape in place instead of creating a
+    // duplicate. A capture from any other tab (a normal web page) is a new item.
+    const senderTabId = sender && sender.tab ? sender.tab.id : null;
+    const pending = await getPending();
+    const existingEntryId = senderTabId != null ? pending[senderTabId] : null;
+
+    if (existingEntryId) {
+      // Reset the scraped fields so the new search repopulates them cleanly.
+      await updateEntry(existingEntryId, {
+        thumbnail: msg.thumbnail,
+        lensUrl,
+        title: "",
+        description: "",
+        resaleValue: null,
+        priceStats: null,
+        marketStats: null,
+        comps: [],
+        confidence: "none",
+        confidenceReason: "",
+        userConfirmed: false,
+      });
+
+      // Reuse the same tab: navigate it to the new results and let the scraper
+      // re-inject (clear the per-tab "injected" flag so onUpdated re-runs it).
+      const injected = await getInjected();
+      delete injected[senderTabId];
+      await setInjected(injected);
+
+      // Respond before navigating: tabs.update tears down the sender content
+      // script, which would close the message port.
+      sendResponse({ ok: true, entryId: existingEntryId, mode, lensUrl, updated: true });
+      chrome.tabs.update(senderTabId, { url: lensUrl });
+      return;
+    }
+
     const entry = await addEntry({
       thumbnail: msg.thumbnail,
       description: msg.description || "",
@@ -137,7 +194,6 @@ async function handleLogEntry(msg, sendResponse) {
     });
 
     const lensTab = await chrome.tabs.create({ url: lensUrl });
-    const pending = await getPending();
     pending[lensTab.id] = entry.id;
     await setPending(pending);
 
