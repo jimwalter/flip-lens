@@ -9,7 +9,8 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node src/migrate.js",
-    "lint": "find src -name '*.js' -exec node --check {} +"
+    "lint": "find src -name '*.js' -exec node --check {} +",
+    "test:smoke": "node test/smoke.mjs"
   },
   "engines": {
     "node": ">=20"
