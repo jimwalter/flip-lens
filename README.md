@@ -42,6 +42,10 @@ and a per-user backend are an explicit later phase.
 
 ## Install (load unpacked)
 
+You can load the repo directly, or build a self-contained zip first.
+
+**Option A — load the repo directly**
+
 1. Clone this repo.
 2. Open `chrome://extensions` in Chrome.
 3. Toggle **Developer mode** (top-right) **on**.
@@ -49,6 +53,13 @@ and a per-user backend are an explicit later phase.
    containing `manifest.json`).
 5. **Pin the icon**: click the puzzle-piece (Extensions) button in the toolbar
    and click the pin next to **Flip Lens** so the icon is always visible.
+
+**Option B — build a distributable zip**
+
+1. Run `npm run package` (or `./scripts/package.sh`). This writes
+   `dist/flip-lens-<version>.zip` containing only the runtime files.
+2. Unzip it anywhere, then follow steps 2–5 above, selecting the unzipped
+   folder in step 4.
 
 > The crop overlay cannot run on restricted pages such as `chrome://*`, the
 > Chrome Web Store, or `view-source:` pages. Try it on a normal website.
