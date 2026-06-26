@@ -30,60 +30,92 @@
     "wayfair",
   ];
 
-  // Matches "$1,234.56", "$99", "$1.2k" is intentionally NOT matched to avoid
-  // garbage. Currency limited to USD for the MVP.
-  const PRICE_RE = /\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/g;
-
-  // Candidate containers for shopping / for-sale match listings. Lens markup
-  // changes often, so we try several broad selectors and de-duplicate.
-  const LISTING_SELECTORS = [
-    'a[href*="shopping"]',
-    'a[href*="/url?"]',
-    '[role="listitem"]',
-    'div[data-item-id]',
-    'div[jsname]',
-  ];
+  // A price tag is rendered as its own leaf element, e.g. "$30", "$1,234.56",
+  // sometimes with a trailing "*" (Lens uses it for "check site for pricing").
+  const PRICE_EXACT_RE = /^\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?\*?$/;
 
   function parsePrice(str) {
-    const num = parseFloat(str.replace(/[^0-9.]/g, ""));
+    const num = parseFloat(String(str).replace(/[^0-9.]/g, ""));
     return Number.isFinite(num) ? num : null;
   }
 
-  // Walk likely listing nodes and pull price strings + a guess at their source.
+  function isMerchantAnchor(a) {
+    let host = "";
+    try {
+      host = new URL(a.href).hostname.toLowerCase();
+    } catch (_) {
+      return false;
+    }
+    // Skip Google's own links (related searches, AI overview, nav, etc.).
+    return host && !/(^|\.)google\.[a-z.]+$/.test(host) && !host.includes("gstatic.");
+  }
+
+  // Extract prices from the Lens "Visual matches" grid and pair each with the
+  // listing it belongs to.
+  //
+  // IMPORTANT (fragile): each price is NOT inside the listing's <a> — it is an
+  // absolutely-positioned overlay rendered as a sibling that appears in DOM
+  // order immediately BEFORE the listing's anchor. So we collect price leaves
+  // and merchant anchors, order them by document position, and pair every price
+  // with the first merchant anchor that follows it (its own card), reading the
+  // comp source from that anchor's hostname.
+  //
   // Returns: [{ value:Number, source:String|null, text:String }]
   function extractPrices(root = document) {
+    const scope = root && root.querySelectorAll ? root : document;
+
+    const priceEls = [];
+    scope.querySelectorAll("span, div, b").forEach((el) => {
+      if (el.children.length) return; // leaf nodes only
+      const t = (el.textContent || "").trim();
+      if (PRICE_EXACT_RE.test(t)) priceEls.push(el);
+    });
+
+    const anchorEls = [];
+    scope.querySelectorAll("a[href]").forEach((a) => {
+      if (isMerchantAnchor(a)) anchorEls.push(a);
+    });
+
+    if (!priceEls.length) return [];
+
+    // Merge both sets and sort by document order.
+    const ordered = [
+      ...priceEls.map((el) => ({ el, kind: "price" })),
+      ...anchorEls.map((el) => ({ el, kind: "anchor" })),
+    ].sort((a, b) => {
+      const rel = a.el.compareDocumentPosition(b.el);
+      if (rel & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      if (rel & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+      return 0;
+    });
+
     const found = [];
-    const seenNodes = new Set();
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].kind !== "price") continue;
+      const value = parsePrice(ordered[i].el.textContent);
+      // Filter implausible values (Lens UI chrome, ratings, etc.).
+      if (value == null || value < 1 || value > 100000) continue;
 
-    const nodes = [];
-    for (const sel of LISTING_SELECTORS) {
-      root.querySelectorAll(sel).forEach((n) => nodes.push(n));
-    }
-
-    for (const node of nodes) {
-      if (seenNodes.has(node)) continue;
-      seenNodes.add(node);
-
-      const text = (node.innerText || node.textContent || "").trim();
-      if (!text) continue;
-
-      const matches = text.match(PRICE_RE);
-      if (!matches) continue;
-
-      const lower = text.toLowerCase();
-      const href = (node.getAttribute && (node.getAttribute("href") || "")) || "";
-      const haystack = (lower + " " + href.toLowerCase());
-      const source = COMP_SOURCES.find((s) => haystack.includes(s)) || null;
-
-      for (const m of matches) {
-        const value = parsePrice(m);
-        // Filter implausible values (Lens UI chrome, ratings, etc.).
-        if (value == null || value < 1 || value > 100000) continue;
-        found.push({ value, source, text: text.slice(0, 120) });
+      let source = null;
+      let text = (ordered[i].el.textContent || "").trim();
+      // Pair with the first merchant anchor before the next price (same card).
+      for (let j = i + 1; j < ordered.length && ordered[j].kind !== "price"; j++) {
+        const a = ordered[j].el;
+        let host = "";
+        try {
+          host = new URL(a.href).hostname.toLowerCase();
+        } catch (_) {
+          /* keep null */
+        }
+        const haystack = host + " " + (a.innerText || a.textContent || "").toLowerCase();
+        source = COMP_SOURCES.find((s) => haystack.includes(s)) || null;
+        text = (a.innerText || a.textContent || text).trim().slice(0, 120);
+        break;
       }
+      found.push({ value, source, text });
     }
 
-    // De-duplicate identical value+source pairs (same listing matched twice).
+    // De-duplicate identical value+source pairs (defensive against repeats).
     const uniq = [];
     const seen = new Set();
     for (const p of found) {
@@ -93,6 +125,15 @@
       uniq.push(p);
     }
     return uniq;
+  }
+
+  // Prefer prices from recognized resale comp sources (eBay, Mercari, etc.)
+  // when there are enough of them — they reflect actual resale value far better
+  // than the wide mix of loosely-related Visual matches. Falls back to all
+  // prices when comps are sparse.
+  function pickPriceSet(prices) {
+    const comps = prices.filter((p) => p.source);
+    return comps.length >= 3 ? comps : prices;
   }
 
   function computeStats(prices) {
@@ -161,5 +202,5 @@
     };
   }
 
-  window.FlipLensExtractor = { extractPrices, computeStats, scoreConfidence };
+  window.FlipLensExtractor = { extractPrices, pickPriceSet, computeStats, scoreConfidence };
 })();

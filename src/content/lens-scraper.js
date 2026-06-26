@@ -66,7 +66,8 @@
     try {
       const extractor = window.FlipLensExtractor;
       if (extractor) {
-        const prices = extractor.extractPrices(document);
+        const all = extractor.extractPrices(document);
+        const prices = extractor.pickPriceSet(all);
         const stats = extractor.computeStats(prices);
         const { confidence, reason } = extractor.scoreConfidence(prices, stats);
         payload = { stats, confidence, confidenceReason: reason };
