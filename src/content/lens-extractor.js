@@ -136,6 +136,94 @@
     return comps.length >= 3 ? comps : prices;
   }
 
+  function cleanText(s) {
+    return (s || "").replace(/\s+/g, " ").trim();
+  }
+
+  function titleCase(s) {
+    return s.replace(/\w[\w'-]*/g, (w) =>
+      w.length > 2 ? w[0].toUpperCase() + w.slice(1) : w
+    );
+  }
+
+  // Best-effort item title + description scraped from the Lens results.
+  //
+  // FRAGILE / NON-API (same caveat as extractPrices): Google ships no API for
+  // this, so it relies on page structure that may change.
+  //   - title:       Google's "Related searches" are short query phrases that
+  //                  name the item well (e.g. "Eames Lounge Chair"). They render
+  //                  as anchors to /search?q=<phrase>, so we read those.
+  //   - description: the most descriptive for-sale listing title in the grid,
+  //                  preferring recognized comp sources (eBay/Etsy/etc.).
+  // Returns { title:String, description:String } (either may be "").
+  function extractItemInfo(root = document) {
+    const scope = root && root.querySelectorAll ? root : document;
+
+    // --- Title from related-search phrases ---
+    const related = [];
+    scope.querySelectorAll("a[href]").forEach((a) => {
+      let u;
+      try {
+        u = new URL(a.href, location.href);
+      } catch (_) {
+        return;
+      }
+      if (!/(^|\.)google\.[a-z.]+$/.test(u.hostname)) return;
+      if (!/\/search/.test(u.pathname)) return;
+      if (!u.searchParams.get("q")) return;
+      const t = cleanText(a.innerText || a.textContent);
+      const words = t ? t.split(/\s+/) : [];
+      if (t.length >= 3 && t.length <= 50 && words.length >= 1 && words.length <= 6) {
+        related.push(t);
+      }
+    });
+
+    let title = "";
+    if (related.length) {
+      // Most frequent phrase wins; tie-break toward the shorter one.
+      const counts = new Map();
+      for (const t of related) {
+        const key = t.toLowerCase();
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      related.sort((a, b) => {
+        const diff = counts.get(b.toLowerCase()) - counts.get(a.toLowerCase());
+        return diff !== 0 ? diff : a.length - b.length;
+      });
+      title = titleCase(related[0]);
+    }
+
+    // --- Description from the most descriptive for-sale listing title ---
+    const candidates = [];
+    scope.querySelectorAll("a[href]").forEach((a) => {
+      if (!isMerchantAnchor(a)) return;
+      const t = cleanText(a.innerText || a.textContent);
+      if (t.length < 15 || t.length > 180) return;
+      if (PRICE_EXACT_RE.test(t)) return;
+      let host = "";
+      try {
+        host = new URL(a.href).hostname.toLowerCase();
+      } catch (_) {
+        /* keep host empty */
+      }
+      const isComp = COMP_SOURCES.some((s) => (host + " " + t.toLowerCase()).includes(s));
+      candidates.push({ t, isComp });
+    });
+
+    let description = "";
+    if (candidates.length) {
+      // Prefer comp-source listings, then the longest (most descriptive) title.
+      candidates.sort((a, b) => {
+        if (a.isComp !== b.isComp) return a.isComp ? -1 : 1;
+        return b.t.length - a.t.length;
+      });
+      description = candidates[0].t.replace(/[.\u2026]+$/, "").trim();
+      if (description.length > 140) description = description.slice(0, 137).trim() + "…";
+    }
+
+    return { title, description };
+  }
+
   function computeStats(prices) {
     if (!prices.length) return null;
     const values = prices.map((p) => p.value).sort((a, b) => a - b);
@@ -202,5 +290,5 @@
     };
   }
 
-  window.FlipLensExtractor = { extractPrices, pickPriceSet, computeStats, scoreConfidence };
+  window.FlipLensExtractor = { extractPrices, pickPriceSet, computeStats, scoreConfidence, extractItemInfo };
 })();

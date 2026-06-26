@@ -78,6 +78,7 @@ function applyBadge(badgeEl, entry) {
 function makeRow(entry) {
   const node = tpl.content.firstElementChild.cloneNode(true);
   const thumb = node.querySelector(".thumb");
+  const title = node.querySelector(".title");
   const desc = node.querySelector(".desc");
   const value = node.querySelector(".value");
   const badge = node.querySelector(".badge");
@@ -87,6 +88,7 @@ function makeRow(entry) {
   const delBtn = node.querySelector(".del-btn");
 
   thumb.src = entry.thumbnail || "";
+  title.value = entry.title || "";
   desc.value = entry.description || "";
   value.value = entry.resaleValue == null ? "" : entry.resaleValue;
   date.textContent = fmtDate(entry.createdAt);
@@ -99,6 +101,17 @@ function makeRow(entry) {
   }
 
   applyBadge(badge, entry);
+
+  // Title editing (saved on blur / Enter).
+  const saveTitle = () => {
+    if (title.value !== (entry.title || "")) {
+      updateEntry(entry.id, { title: title.value });
+    }
+  };
+  title.addEventListener("blur", saveTitle);
+  title.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") title.blur();
+  });
 
   // Description editing (saved on blur / Enter).
   const saveDesc = () => {

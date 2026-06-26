@@ -214,7 +214,7 @@ async function handleGetScrapeJob(sender, sendResponse) {
 // already manually confirmed the value.
 async function handleScrapeResult(msg, sendResponse) {
   try {
-    const { entryId, stats, confidence, confidenceReason } = msg;
+    const { entryId, stats, confidence, confidenceReason, title, description } = msg;
     if (!entryId) {
       sendResponse({ ok: false });
       return;
@@ -222,18 +222,25 @@ async function handleScrapeResult(msg, sendResponse) {
     const list = await getHistory();
     const existing = list.find((e) => e.id === entryId);
 
-    // Never clobber a value the user already entered/confirmed.
-    if (existing && existing.userConfirmed) {
-      sendResponse({ ok: true, skipped: "user-confirmed" });
-      return;
+    const patch = {};
+
+    // Fill the title/description from the Lens results, but never overwrite text
+    // the user has already typed into the entry.
+    if (title && !(existing && (existing.title || "").trim())) patch.title = title;
+    if (description && !(existing && (existing.description || "").trim())) {
+      patch.description = description;
     }
 
-    await updateEntry(entryId, {
-      resaleValue: stats && stats.median != null ? stats.median : (existing ? existing.resaleValue : null),
-      priceStats: stats || null,
-      confidence: confidence || "none",
-      confidenceReason: confidenceReason || "",
-    });
+    // Never clobber a resale value the user already entered/confirmed.
+    if (!(existing && existing.userConfirmed)) {
+      patch.resaleValue =
+        stats && stats.median != null ? stats.median : existing ? existing.resaleValue : null;
+      patch.priceStats = stats || null;
+      patch.confidence = confidence || "none";
+      patch.confidenceReason = confidenceReason || "";
+    }
+
+    if (Object.keys(patch).length) await updateEntry(entryId, patch);
     sendResponse({ ok: true });
   } catch (e) {
     sendResponse({ ok: false, error: String(e) });
