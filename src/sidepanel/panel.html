@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flip Lens — History</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Flip Lens</h1>
+      <div class="sort">
+        <label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="date-desc">Newest</option>
+          <option value="date-asc">Oldest</option>
+          <option value="value-desc">Resale value ↓</option>
+          <option value="value-asc">Resale value ↑</option>
+        </select>
+      </div>
+    </header>
+
+    <p class="hint">
+      Click the toolbar icon, drag to crop an item, then paste (Ctrl/Cmd+V) into
+      the Google Lens tab.
+    </p>
+
+    <ul id="list" class="list"></ul>
+    <div id="empty" class="empty">No items yet. Crop something to get started.</div>
+
+    <template id="row-tpl">
+      <li class="row">
+        <img class="thumb" alt="cropped item" />
+        <div class="body">
+          <input class="desc" type="text" placeholder="Add a description…" />
+          <div class="value-line">
+            <span class="dollar">$</span>
+            <input class="value" type="number" step="0.01" min="0" placeholder="resale value" />
+            <span class="badge"></span>
+          </div>
+          <div class="meta">
+            <span class="date"></span>
+            <span class="stats"></span>
+          </div>
+          <div class="actions">
+            <button class="lens-btn" title="Re-open this search on Google Lens">Open Lens</button>
+            <button class="del-btn" title="Delete entry">Delete</button>
+          </div>
+        </div>
+      </li>
+    </template>
+
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>
