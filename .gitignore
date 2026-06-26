@@ -12,6 +12,9 @@ build/
 *.crx
 *.pem
 
+# Chrome-generated when loading an unpacked extension
+_metadata/
+
 # Environment / secrets
 .env
 .env.*

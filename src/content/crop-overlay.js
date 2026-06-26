@@ -3,8 +3,11 @@
 // Mimics macOS Cmd+Shift+4: dims the viewport, shows a crosshair, and lets the
 // user drag a selection box. On mouse-up it asks the background worker to
 // capture the visible tab, crops the capture to the selection (accounting for
-// devicePixelRatio), copies the cropped PNG to the clipboard, and logs the
-// item to history before opening Google Lens.
+// devicePixelRatio), and hands the cropped PNG to the background worker, which
+// uploads it to Google Lens and opens the results in a new tab automatically.
+//
+// A clipboard copy is kept only as a fallback for the rare case the automatic
+// upload fails (the background worker then opens lens.google.com to paste).
 //
 // Esc cancels at any time.
 
@@ -149,33 +152,37 @@
       return;
     }
 
-    // Copy the cropped image to the clipboard so the user can paste into Lens.
-    let copied = false;
+    // Fallback only: copy the cropped image to the clipboard in case the
+    // automatic Lens upload fails and the user has to paste manually.
     try {
       await navigator.clipboard.write([
         new ClipboardItem({ "image/png": cropped.blob }),
       ]);
-      copied = true;
     } catch (e) {
-      // Clipboard may be blocked on some pages; the flow still works manually.
+      // Clipboard may be blocked on some pages; auto-upload doesn't need it.
       console.warn("Flip Lens: clipboard write failed:", e);
     }
 
-    // Log the entry + open Lens via background.
+    toast("Searching Google Lens…");
+
+    // Hand the crop to the background worker: it uploads to Lens and opens the
+    // results tab automatically (no paste needed).
+    let logResp;
     try {
-      await chrome.runtime.sendMessage({
+      logResp = await chrome.runtime.sendMessage({
         type: "FLIPLENS_LOG_ENTRY",
         thumbnail: cropped.thumbnail,
+        uploadImage: cropped.dataUrl,
       });
     } catch (e) {
       console.warn("Flip Lens: failed to log entry:", e);
     }
 
-    toast(
-      copied
-        ? "Copied! Press Ctrl/Cmd+V in the Google Lens tab to search."
-        : "Saved to history. Clipboard blocked here — re-crop on the item if Lens has no image."
-    );
+    if (logResp && logResp.ok && logResp.mode === "fallback") {
+      toast("Lens tab opened — press Ctrl/Cmd+V to run the search.");
+    } else if (!logResp || !logResp.ok) {
+      toast("Saved to history, but the Lens search could not be started.");
+    }
   }
 
   // Crop the captured PNG to the selection. The capture is in device pixels,
@@ -198,10 +205,14 @@
       canvas.toBlob(resolve, "image/png")
     );
 
+    // Full-resolution crop as a data URL — uploaded to Lens by the background
+    // worker (messaging can't carry a Blob, so we send the data URL).
+    const cropUrl = canvas.toDataURL("image/png");
+
     // Downscaled thumbnail for storage (keeps chrome.storage.local small).
     const thumb = makeThumbnail(img, sx, sy, sw, sh, 320);
 
-    return { blob, thumbnail: thumb };
+    return { blob, thumbnail: thumb, dataUrl: cropUrl };
   }
 
   function makeThumbnail(img, sx, sy, sw, sh, maxDim) {
