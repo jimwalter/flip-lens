@@ -1,0 +1,25 @@
+{
+  "name": "flip-lens-server",
+  "version": "0.1.0",
+  "description": "Flip Lens backend API (multi-tenant ready, auth-less MVP groundwork).",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "migrate": "node src/migrate.js",
+    "lint": "find src -name '*.js' -exec node --check {} +"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  },
+  "license": "MIT"
+}
