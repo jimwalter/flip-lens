@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flip
+      POSTGRES_PASSWORD: flip
+      POSTGRES_DB: flip_lens
+    ports:
+      - "5432:5432"
+    volumes:
+      - flip_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flip -d flip_lens"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  flip_pgdata:

@@ -111,7 +111,12 @@ recognized comp sources (eBay, Etsy, Mercari, …) versus arbitrary page text.
 manifest.json                     MV3 manifest (permissions, action, side panel)
 src/
   background.js                   Service worker: icon click, capture, Lens upload, messaging
-  lib/storage.js                  chrome.storage.local history helpers (swappable for IndexedDB)
+  lib/
+    storage.js                    Storage adapter — delegates to local or remote store
+    localStore.js                 Default: chrome.storage.local (offline MVP behavior)
+    remoteStore.js                REST client for the Flip Lens API (server/)
+    config.js                     Backend toggle (local by default) + tenant/user
+    schema.js                     Shared constants (Confidence tiers)
   content/
     crop-overlay.js               Drag-select overlay + crop (injected on click)
     lens-extractor.js             ⚠ FRAGILE: Lens DOM selectors + confidence scoring (isolated)
@@ -119,7 +124,28 @@ src/
   sidepanel/
     panel.html / panel.css / panel.js   History UI (sort, inline edit, badges, delete)
 icons/                            Toolbar / extension icons
+server/                           Multi-tenant API + Postgres + object storage (see server/README.md)
 ```
+
+## Backend (groundwork)
+
+The extension is local-only by default. A `server/` package adds a
+multi-tenant-ready API (Node + Express + Postgres) with thumbnails in object
+storage (local-disk dev driver, S3/Cloudflare R2 for prod) — **no auth yet**,
+built so going live is just: add auth to one middleware, set env vars, deploy.
+See [`server/README.md`](server/README.md) to run it locally.
+
+To point the extension at it, set the `flipLensSettings` key in
+`chrome.storage.local` (e.g. from the side-panel devtools console):
+
+```js
+chrome.storage.local.set({ flipLensSettings: { enabled: true, baseUrl: "http://localhost:8787" } })
+```
+
+Note: cross-origin requests from the extension to the API require a matching
+entry in `host_permissions` in `manifest.json` (e.g. `"http://localhost:8787/*"`
+for local dev, or your deployed API origin). This is intentionally left out
+while the remote store is disabled by default.
 
 ---
 
