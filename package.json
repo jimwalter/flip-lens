@@ -1,0 +1,10 @@
+{
+  "name": "flip-lens",
+  "version": "0.1.0",
+  "description": "Chrome extension (MV3): drag-select an item on any page, reverse-image-search it on Google Lens, and log it to a sortable resale-value history.",
+  "private": true,
+  "scripts": {
+    "package": "bash scripts/package.sh"
+  },
+  "license": "MIT"
+}
