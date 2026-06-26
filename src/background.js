@@ -214,7 +214,8 @@ async function handleGetScrapeJob(sender, sendResponse) {
 // already manually confirmed the value.
 async function handleScrapeResult(msg, sendResponse) {
   try {
-    const { entryId, stats, confidence, confidenceReason, title, description } = msg;
+    const { entryId, stats, marketStats, comps, confidence, confidenceReason, title, description } =
+      msg;
     if (!entryId) {
       sendResponse({ ok: false });
       return;
@@ -230,6 +231,11 @@ async function handleScrapeResult(msg, sendResponse) {
     if (description && !(existing && (existing.description || "").trim())) {
       patch.description = description;
     }
+
+    // Comp listings (with links) are reference data — keep them on the entry
+    // even after the user confirms a value, so the links stay available.
+    if (Array.isArray(comps) && comps.length) patch.comps = comps;
+    if (marketStats) patch.marketStats = marketStats;
 
     // Never clobber a resale value the user already entered/confirmed.
     if (!(existing && existing.userConfirmed)) {

@@ -43,6 +43,8 @@ export async function addEntry(entry) {
     userConfirmed: entry.userConfirmed || false,
     lensUrl: entry.lensUrl || "https://lens.google.com/",
     priceStats: entry.priceStats || null,
+    marketStats: entry.marketStats || null,
+    comps: Array.isArray(entry.comps) ? entry.comps : [],
   };
   list.unshift(full);
   await setHistory(list);

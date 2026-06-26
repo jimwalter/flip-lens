@@ -215,6 +215,35 @@ body {
   color: var(--muted);
 }
 
+.market {
+  color: var(--muted);
+}
+
+.comps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.comp {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #f7f7f8;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comp:hover {
+  background: #eef5ff;
+  border-color: var(--accent);
+}
+
 .actions {
   display: flex;
   gap: 6px;

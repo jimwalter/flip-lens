@@ -70,12 +70,17 @@
         const all = extractor.extractPrices(document);
         const prices = extractor.pickPriceSet(all);
         const stats = extractor.computeStats(prices);
+        // Full observed range across every match (shown as market context).
+        const marketStats = extractor.computeStats(all);
         const { confidence, reason } = extractor.scoreConfidence(prices, stats);
+        const comps = extractor.pickComps ? extractor.pickComps(all) : [];
         const info = extractor.extractItemInfo
           ? extractor.extractItemInfo(document)
           : { title: "", description: "" };
         payload = {
           stats,
+          marketStats,
+          comps,
           confidence,
           confidenceReason: reason,
           title: info.title,
