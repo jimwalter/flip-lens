@@ -19,6 +19,12 @@ export const config = {
   databaseUrl: required("DATABASE_URL", "postgres://flip:flip@localhost:5432/flip_lens"),
   defaultTenantId: process.env.DEFAULT_TENANT_ID || "00000000-0000-0000-0000-000000000001",
   defaultUserId: process.env.DEFAULT_USER_ID || "00000000-0000-0000-0000-000000000001",
+  // Express "trust proxy" setting; number of proxy hops in front of the app.
+  trustProxy: Number(process.env.TRUST_PROXY || 1),
+  rateLimit: {
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
+    max: Number(process.env.RATE_LIMIT_MAX || 120),
+  },
   storage: {
     driver: process.env.STORAGE_DRIVER || "local",
     localDir: process.env.STORAGE_LOCAL_DIR || "./.data/images",

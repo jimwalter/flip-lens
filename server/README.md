@@ -15,6 +15,10 @@ middleware, set env vars, and deploy.
   The DB stores only the object key + URL, never image bytes.
 - **`requireTenant` middleware** (`src/middleware/tenant.js`) — the single place
   to add real auth. It currently injects the default tenant/user.
+- **Basic hardening** (no auth yet): `helmet` security headers, locked-down CORS,
+  per-IP rate limiting, gzip compression, and input validation
+  (`src/middleware/validate.js`). SQL is injection-safe — all queries are
+  parameterized and the only dynamic columns come from a fixed whitelist.
 
 ## Why images go to object storage (not the DB, not re-fetched)
 
@@ -50,7 +54,7 @@ You can override during dev with `x-tenant-id` / `x-user-id` headers.
 
 | Method | Path             | Body                                              | Notes |
 |--------|------------------|---------------------------------------------------|-------|
-| GET    | `/api/items`     | —                                                 | newest first |
+| GET    | `/api/items`     | query: `?limit=` (1–100, default 50) `&cursor=`   | newest first; keyset-paginated, returns `{ items, nextCursor }` |
 | GET    | `/api/items/:id` | —                                                 | |
 | POST   | `/api/items`     | item fields + optional `thumbnailDataUrl`         | stores image, returns `thumbnailUrl` |
 | PATCH  | `/api/items/:id` | partial item fields (+ optional `thumbnailDataUrl`) | inline edits / confirm |
