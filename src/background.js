@@ -11,7 +11,7 @@
 //  - Inject the Lens results scraper into that tab, hand it its "job" (which
 //    history entry to fill in), and apply scraped price + confidence back.
 
-import { addEntry, updateEntry } from "./lib/storage.js";
+import { addEntry, updateEntry, getHistory } from "./lib/storage.js";
 
 // Maps a Lens results tabId -> the history entry id awaiting a price scrape.
 // Kept in chrome.storage.session so it survives service-worker suspension.
@@ -120,7 +120,7 @@ async function handleLogEntry(msg, sendResponse) {
 
     if (msg.uploadImage) {
       try {
-        lensUrl = await uploadToLens(msg.uploadImage);
+        lensUrl = toVisualMatchesUrl(await uploadToLens(msg.uploadImage));
       } catch (e) {
         console.warn("Flip Lens: Lens upload failed, falling back to paste:", e);
       }
@@ -173,6 +173,23 @@ async function uploadToLens(dataUrl) {
   return url;
 }
 
+// Lens's upload redirect lands on the "All" surface (udm=26), which shows an AI
+// overview and "about this image" — but NOT the for-sale price grid. The actual
+// resale comps with "$NN" badges live on the "Visual matches" surface (udm=44),
+// reached by switching the `udm` parameter. We open that surface directly so the
+// flow stays zero-click AND the scraper has prices to read. This is an
+// unofficial param and may need maintenance if Google changes it.
+function toVisualMatchesUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (!/\/search/.test(u.pathname)) return rawUrl;
+    u.searchParams.set("udm", "44");
+    return u.toString();
+  } catch (_) {
+    return rawUrl;
+  }
+}
+
 function dataUrlToBlob(dataUrl) {
   const [head, body] = dataUrl.split(",");
   const mime = (head.match(/data:(.*?)(;base64)?$/) || [])[1] || "image/png";
@@ -202,7 +219,6 @@ async function handleScrapeResult(msg, sendResponse) {
       sendResponse({ ok: false });
       return;
     }
-    const { getHistory } = await import("./lib/storage.js");
     const list = await getHistory();
     const existing = list.find((e) => e.id === entryId);
 
