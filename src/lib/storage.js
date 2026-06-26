@@ -35,6 +35,7 @@ export async function addEntry(entry) {
     id: entry.id || crypto.randomUUID(),
     createdAt: entry.createdAt || Date.now(),
     thumbnail: entry.thumbnail || "",
+    title: entry.title || "",
     description: entry.description || "",
     resaleValue: entry.resaleValue ?? null,
     confidence: entry.confidence || Confidence.NONE,

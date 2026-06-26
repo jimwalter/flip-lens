@@ -71,7 +71,16 @@
         const prices = extractor.pickPriceSet(all);
         const stats = extractor.computeStats(prices);
         const { confidence, reason } = extractor.scoreConfidence(prices, stats);
-        payload = { stats, confidence, confidenceReason: reason };
+        const info = extractor.extractItemInfo
+          ? extractor.extractItemInfo(document)
+          : { title: "", description: "" };
+        payload = {
+          stats,
+          confidence,
+          confidenceReason: reason,
+          title: info.title,
+          description: info.description,
+        };
       }
     } catch (e) {
       console.warn("Flip Lens: scrape failed (non-fatal):", e);
