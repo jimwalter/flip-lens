@@ -75,6 +75,44 @@ function applyBadge(badgeEl, entry) {
   badgeEl.title = entry.confidenceReason || "";
 }
 
+// Display names for recognized comp sources (the scraper stores lowercase keys).
+const SOURCE_LABELS = {
+  ebay: "eBay",
+  etsy: "Etsy",
+  mercari: "Mercari",
+  poshmark: "Poshmark",
+  "facebook marketplace": "FB Marketplace",
+  chairish: "Chairish",
+  "1stdibs": "1stDibs",
+  offerup: "OfferUp",
+  amazon: "Amazon",
+  wayfair: "Wayfair",
+};
+
+// Render the comp listings as clickable chips that open the source listing in a
+// new tab. Built with DOM APIs (textContent) so scraped strings can't inject
+// markup.
+function renderComps(container, comps) {
+  container.textContent = "";
+  if (!Array.isArray(comps) || !comps.length) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "flex";
+  for (const c of comps) {
+    if (!c || !c.url) continue;
+    const a = document.createElement("a");
+    a.className = "comp";
+    a.href = c.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    const label = SOURCE_LABELS[c.source] || c.source;
+    a.textContent = `${label} $${c.value}`;
+    a.title = c.text || c.url;
+    container.appendChild(a);
+  }
+}
+
 function makeRow(entry) {
   const node = tpl.content.firstElementChild.cloneNode(true);
   const thumb = node.querySelector(".thumb");
@@ -84,6 +122,8 @@ function makeRow(entry) {
   const badge = node.querySelector(".badge");
   const date = node.querySelector(".date");
   const stats = node.querySelector(".stats");
+  const market = node.querySelector(".market");
+  const comps = node.querySelector(".comps");
   const lensBtn = node.querySelector(".lens-btn");
   const delBtn = node.querySelector(".del-btn");
 
@@ -93,12 +133,29 @@ function makeRow(entry) {
   value.value = entry.resaleValue == null ? "" : entry.resaleValue;
   date.textContent = fmtDate(entry.createdAt);
 
-  if (entry.priceStats && entry.priceStats.count) {
-    const s = entry.priceStats;
-    stats.textContent = `${s.count} prices · $${s.min}–$${s.max}`;
+  // Primary stats: the comp set the estimate is based on (count + range).
+  const s = entry.priceStats;
+  if (s && s.count) {
+    const noun = s.count === 1 ? "comp" : "comps";
+    stats.textContent =
+      s.min === s.max
+        ? `${s.count} ${noun} · $${s.min}`
+        : `${s.count} ${noun} · $${s.min}–$${s.max}`;
   } else {
     stats.textContent = "";
   }
+
+  // Market range: the full observed spread across all matches, shown only when
+  // it adds information beyond the comp range above.
+  const m = entry.marketStats;
+  if (m && m.count && s && (m.min !== s.min || m.max !== s.max)) {
+    market.textContent = `market $${m.min}–$${m.max}`;
+    market.title = `${m.count} prices observed across all visual matches`;
+  } else {
+    market.textContent = "";
+  }
+
+  renderComps(comps, entry.comps);
 
   applyBadge(badge, entry);
 
